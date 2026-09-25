@@ -1,0 +1,100 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSameUser(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isHouseMember(houseId, uid) {
+      return exists(
+        /databases/$(database)/documents/houseMembers/$(houseId)/members/$(uid)
+      );
+    }
+
+    function isOwnerOrAdmin(houseId) {
+      return isSignedIn() &&
+        isHouseMember(houseId, request.auth.uid) &&
+        get(
+          /databases/$(database)/documents/houseMembers/$(houseId)/members/$(request.auth.uid)
+        ).data.role in ['owner', 'admin'];
+    }
+
+    match /users/{uid} {
+      allow read: if isSignedIn();
+
+      allow create: if
+        isSignedIn() &&
+        request.auth.uid == uid;
+
+      allow update: if
+        isSignedIn() &&
+        request.auth.uid == uid;
+
+      allow delete: if false;
+    }
+
+    match /houses/{houseId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn();
+
+      allow update: if isOwnerOrAdmin(houseId);
+
+      allow delete: if isOwnerOrAdmin(houseId);
+    }
+
+    match /houseMembers/{houseId}/members/{uid} {
+      allow read: if isSignedIn();
+
+      allow create: if
+        isSignedIn() &&
+        request.auth.uid == uid &&
+        request.resource.data.uid == uid &&
+        request.resource.data.houseId == houseId &&
+        request.resource.data.role == 'member' &&
+        request.resource.data.status == 'active' &&
+        request.resource.data.createdAt == request.time &&
+        request.resource.data.joinedAt == request.time &&
+        request.resource.data.updatedAt == request.time;
+
+      allow update: if
+        (
+          isSignedIn() &&
+          request.auth.uid == uid &&
+          request.resource.data.uid == uid &&
+          request.resource.data.houseId == houseId &&
+          request.resource.data.role == 'member' &&
+          request.resource.data.status == 'active' &&
+          request.resource.data.updatedAt == request.time
+        )
+        ||
+        (
+          isOwnerOrAdmin(houseId) &&
+          request.resource.data.uid == uid &&
+          request.resource.data.houseId == houseId &&
+          request.resource.data.role in ['member', 'admin'] &&
+          request.resource.data.status in ['active', 'pending'] &&
+          request.resource.data.updatedAt == request.time
+        );
+
+      allow delete: if
+        (
+          isSignedIn() &&
+          request.auth.uid == uid
+        )
+        ||
+        (
+          isOwnerOrAdmin(houseId)
+        );
+    }
+
+    match /housePosts/{postId} {
+      allow read: if isSignedIn();
+    }
+  }
+}

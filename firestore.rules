@@ -1,0 +1,261 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSameUser(uid) {
+      return isSignedIn() &&
+        request.auth.uid == uid;
+    }
+
+    function memberPath(houseId, uid) {
+      return /databases/$(database)/documents/houseMembers/$(houseId)/members/$(uid);
+    }
+
+    function isActiveMember(houseId, uid) {
+      return exists(memberPath(houseId, uid)) &&
+        get(memberPath(houseId, uid)).data.status == 'active';
+    }
+
+    function isOwnerOrAdmin(houseId) {
+      return isSignedIn() &&
+        exists(memberPath(houseId, request.auth.uid)) &&
+        get(memberPath(houseId, request.auth.uid)).data.role in ['owner', 'admin'];
+    }
+
+    // Public directory. No client writes: houses are seeded with the Admin SDK.
+    match /houses/{houseId} {
+      allow read: if true;
+
+      allow create, delete: if false;
+
+      allow update: if isOwnerOrAdmin(houseId) &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['name', 'description', 'language', 'lon', 'lat']);
+    }
+
+    // Own profile only. Shape is locked so no unexpected field can be added.
+    match /users/{uid} {
+      allow get: if isSameUser(uid);
+
+      allow list: if false;
+
+      allow create: if isSameUser(uid) &&
+        request.resource.data.uid == uid &&
+        request.resource.data.keys().hasOnly(
+          [
+            'uid',
+            'email',
+            'username',
+            'displayName',
+            'country',
+            'language',
+            'createdAt'
+          ]
+        ) &&
+        request.resource.data.createdAt == request.time;
+
+      allow update: if isSameUser(uid) &&
+        request.resource.data.uid == uid &&
+        request.resource.data.keys().hasOnly(
+          [
+            'uid',
+            'email',
+            'username',
+            'displayName',
+            'country',
+            'language',
+            'createdAt',
+            'updatedAt'
+          ]
+        ) &&
+        (!('createdAt' in resource.data) ||
+         request.resource.data.createdAt == resource.data.createdAt) &&
+        request.resource.data.updatedAt == request.time;
+
+      allow delete: if false;
+    }
+
+    match /houseMembers/{houseId}/members/{uid} {
+      allow read: if isSignedIn();
+
+      allow create: if
+        isSignedIn() &&
+        request.auth.uid == uid &&
+        request.resource.data.keys().hasOnly(
+          [
+            'uid',
+            'houseId',
+            'displayName',
+            'email',
+            'role',
+            'status',
+            'joinedAt',
+            'createdAt',
+            'updatedAt'
+          ]
+        ) &&
+        request.resource.data.uid == uid &&
+        request.resource.data.houseId == houseId &&
+        request.resource.data.role == 'member' &&
+        request.resource.data.status == 'active' &&
+        (
+          request.resource.data.email == null ||
+          request.resource.data.email == request.auth.token.email
+        ) &&
+        request.resource.data.createdAt == request.time &&
+        request.resource.data.joinedAt == request.time &&
+        request.resource.data.updatedAt == request.time;
+
+      allow update: if
+        (
+          isSignedIn() &&
+          request.auth.uid == uid &&
+          request.resource.data.uid == uid &&
+          request.resource.data.houseId == houseId &&
+          request.resource.data.role == 'member' &&
+          request.resource.data.status == 'active' &&
+          request.resource.data.updatedAt == request.time
+        )
+        ||
+        (
+          isOwnerOrAdmin(houseId) &&
+          request.resource.data.uid == uid &&
+          request.resource.data.houseId == houseId &&
+          request.resource.data.role in ['member', 'admin'] &&
+          request.resource.data.status in ['active', 'pending'] &&
+          request.resource.data.updatedAt == request.time
+        );
+
+      allow delete: if
+        (isSignedIn() && request.auth.uid == uid) ||
+        isOwnerOrAdmin(houseId);
+    }
+
+    // Reads stay signed-in for now.
+    // Membership gating arrives later together with the house posts structure.
+    match /verified/{houseId}/locals/{uid} {
+      allow read: if isSignedIn();
+
+      allow create: if
+        isOwnerOrAdmin(houseId) &&
+        request.resource.data.uid == uid &&
+        request.resource.data.keys().hasOnly(
+          ['uid', 'by', 'at']
+        ) &&
+        request.resource.data.by == request.auth.uid &&
+        request.resource.data.at == request.time;
+
+      allow delete: if isOwnerOrAdmin(houseId);
+
+      allow update: if
+        isOwnerOrAdmin(houseId) &&
+        request.resource.data.uid == uid &&
+        request.resource.data.keys().hasOnly(
+          ['uid', 'by', 'at']
+        ) &&
+        request.resource.data.by == request.auth.uid &&
+        request.resource.data.at == request.time;
+    }
+
+    match /housePosts/{postId} {
+      allow read: if isSignedIn();
+
+      allow create: if
+        isSignedIn() &&
+        request.resource.data.authorUid == request.auth.uid &&
+        isActiveMember(request.resource.data.houseId, request.auth.uid) &&
+        request.resource.data.keys().hasOnly(
+          [
+            'houseId',
+            'authorUid',
+            'authorName',
+            'title',
+            'content',
+            'createdAt',
+            'updatedAt'
+          ]
+        ) &&
+        request.resource.data.title is string &&
+        request.resource.data.title.size() > 0 &&
+        request.resource.data.title.size() <= 150 &&
+        request.resource.data.content is string &&
+        request.resource.data.content.size() > 0 &&
+        request.resource.data.content.size() <= 5000 &&
+        request.resource.data.createdAt == request.time &&
+        request.resource.data.updatedAt == request.time;
+
+      allow update: if
+        isSignedIn() &&
+        resource.data.authorUid == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['title', 'content', 'updatedAt']) &&
+        request.resource.data.updatedAt == request.time;
+
+      allow delete: if
+        isSignedIn() &&
+        (
+          resource.data.authorUid == request.auth.uid ||
+          isOwnerOrAdmin(resource.data.houseId)
+        );
+    }
+
+    match /housePosts/{postId}/translations/{language} {
+      allow read: if
+        isSignedIn() &&
+        isActiveMember(
+          get(/databases/$(database)/documents/housePosts/$(postId)).data.houseId,
+          request.auth.uid
+        );
+
+      allow create: if
+        isSignedIn() &&
+        isActiveMember(
+          get(/databases/$(database)/documents/housePosts/$(postId)).data.houseId,
+          request.auth.uid
+        ) &&
+        request.resource.data.keys().hasOnly(
+          [
+            'title',
+            'content',
+            'language',
+            'createdAt',
+            'updatedAt'
+          ]
+        ) &&
+        request.resource.data.title is string &&
+        request.resource.data.title.size() > 0 &&
+        request.resource.data.content is string &&
+        request.resource.data.content.size() > 0 &&
+        request.resource.data.language == language &&
+        request.resource.data.createdAt == request.time &&
+        request.resource.data.updatedAt == request.time;
+
+      allow update: if
+        isSignedIn() &&
+        isActiveMember(
+          get(/databases/$(database)/documents/housePosts/$(postId)).data.houseId,
+          request.auth.uid
+        ) &&
+        request.resource.data.keys().hasOnly(
+          [
+            'title',
+            'content',
+            'language',
+            'createdAt',
+            'updatedAt'
+          ]
+        ) &&
+        request.resource.data.language == language &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        request.resource.data.updatedAt == request.time;
+
+      allow delete: if false;
+    }
+  }
+}

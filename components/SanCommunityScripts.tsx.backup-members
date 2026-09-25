@@ -1,0 +1,82 @@
+"use client";
+
+import Script from "next/script";
+import { useEffect, useState } from "react";
+
+import { getHouses, type House } from "@/lib/houses";
+
+export default function SanCommunityScripts() {
+  const [d3Ready, setD3Ready] = useState(false);
+  const [appReady, setAppReady] = useState(false);
+  const [houses, setHouses] = useState<House[]>([]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadHouses() {
+      try {
+        const loadedHouses = await getHouses();
+
+        if (!active) return;
+
+        console.log(
+          "SanCommunity Firebase houses:",
+          loadedHouses
+        );
+
+        setHouses(loadedHouses);
+      } catch (error) {
+        console.error(
+          "SanCommunity: failed to load houses from Firebase",
+          error
+        );
+      }
+    }
+
+    void loadHouses();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!appReady || houses.length === 0) {
+      return;
+    }
+
+    console.log(
+      "SanCommunity: sending Firebase houses to Artifact",
+      houses
+    );
+
+    window.dispatchEvent(
+      new CustomEvent<House[]>("sancommunity:houses-loaded", {
+        detail: houses,
+      })
+    );
+  }, [appReady, houses]);
+
+  return (
+    <>
+      <Script
+        src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"
+        strategy="afterInteractive"
+        onReady={() => {
+          setD3Ready(true);
+        }}
+      />
+
+      {d3Ready && (
+        <Script
+          src="/san-community/app.js"
+          strategy="afterInteractive"
+          onReady={() => {
+            console.log("SanCommunity: Artifact app.js ready");
+            setAppReady(true);
+          }}
+        />
+      )}
+    </>
+  );
+}
