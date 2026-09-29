@@ -206,12 +206,39 @@ header {
 @media (max-width: 760px) {
   header {
     gap: 10px;
+    align-items: flex-start;
+  }
+
+  .brand {
+    min-width: 0;
+  }
+
+  .brand h1,
+  .brand p {
+    overflow-wrap: anywhere;
+  }
+
+  .topnav {
+    flex: 1 1 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .topnav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .topnav button {
+    flex: 0 0 auto;
+    white-space: nowrap;
   }
 
   .header-actions {
-    width: 100%;
-    justify-content: flex-end;
-    margin-left: 0;
+    flex: 0 0 auto;
+    width: auto;
+    margin-left: auto;
   }
 }
 
@@ -2069,10 +2096,36 @@ select.inline {
 .topnav button {
   border: 0;
   background: none;
-  padding: 6px 14px;
+  padding: 8px 14px;
+  min-height: 40px;
   border-radius: 999px;
+  font: inherit;
   font-weight: 700;
   color: var(--muted);
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.topnav button:hover {
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  color: var(--ink);
+}
+
+.topnav button:active {
+  transform: scale(0.98);
+}
+
+.topnav button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.topnav button[aria-current="page"] {
+  background: var(--ink);
+  color: var(--paper);
 }
 
 .topnav button[aria-current="page"] {
@@ -2422,24 +2475,77 @@ select.inline {
 
 @media (max-width: 860px) {
   .app {
+    width: 100%;
+    max-width: 100%;
     height: auto;
+    min-width: 0;
+    overflow-x: clip;
+  }
+
+  header {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .brand,
+  .topnav,
+  .header-actions {
+    min-width: 0;
+    max-width: 100%;
   }
 
   main {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     grid-template-columns: 1fr;
   }
 
   .mapwrap {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     height: 56vh;
   }
 
   aside {
+    min-width: 0;
+    max-width: 100%;
     border-left: 0;
     border-top: 1px solid var(--line);
   }
 
   .pc {
+    min-width: 0;
+    max-width: 100%;
     overflow: visible;
+  }
+}
+
+@media (max-width: 480px) {
+  header {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .brand h1 {
+    font-size: 19px;
+  }
+
+  .brand p {
+    font-size: 12px;
+  }
+
+  .topnav {
+    flex: 1 1 100%;
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .topnav button {
+    flex: 0 0 auto;
+    padding: 7px 11px;
   }
 }
 
