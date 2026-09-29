@@ -20,8 +20,8 @@ import {
 type HousePostsProps = {
   houseId: string;
   houseLanguage: string;
+  onPostsChange?: (posts: HousePost[]) => void;
 };
-
 type TranslationState = {
   title: string;
   content: string;
@@ -62,6 +62,7 @@ function hasMeaningfulUpdate(post: HousePost) {
 export default function HousePosts({
   houseId,
   houseLanguage,
+  onPostsChange,
 }: HousePostsProps) {
   const [posts, setPosts] = useState<HousePost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -161,6 +162,7 @@ for (const savedTranslation of savedTranslations) {
 }
 
 setPosts(data);
+onPostsChange?.(data);
 setTranslations(nextTranslations);
     } catch {
       if (requestId !== requestIdRef.current) {

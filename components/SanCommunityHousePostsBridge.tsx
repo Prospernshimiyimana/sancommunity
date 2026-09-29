@@ -103,10 +103,17 @@ export default function SanCommunityHousePostsBridge() {
   }
 
   return createPortal(
-    <HousePosts
-      houseId={houseId}
-      houseLanguage={houseLanguage}
-    />,
+   <HousePosts
+  houseId={houseId}
+  houseLanguage={houseLanguage}
+  onPostsChange={(posts) => {
+    window.dispatchEvent(
+      new CustomEvent("sancommunity:house-posts-loaded", {
+        detail: posts,
+      })
+    );
+  }}
+/>,
     host
   );
 }
